@@ -93,7 +93,7 @@ func ValidateProposalMessage(signedProp *pb.SignedProposal) (*pb.Proposal, *comm
 	}
 
 	// validate the header
-	chdr, shdr, err := validateCommonHeader(hdr)
+	chdr, shdr, err := ValidateCommonHeader(hdr)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -243,7 +243,7 @@ func validateChannelHeader(cHdr *common.ChannelHeader) error {
 }
 
 // checks for a valid Header
-func validateCommonHeader(hdr *common.Header) (*common.ChannelHeader, *common.SignatureHeader, error) {
+func ValidateCommonHeader(hdr *common.Header) (*common.ChannelHeader, *common.SignatureHeader, error) {
 	if hdr == nil {
 		return nil, nil, errors.New("nil header")
 	}
@@ -390,9 +390,9 @@ func ValidateTransaction(e *common.Envelope, c channelconfig.ApplicationCapabili
 	putilsLogger.Debugf("Header is %s", payload.Header)
 
 	// validate the header
-	chdr, shdr, err := validateCommonHeader(payload.Header)
+	chdr, shdr, err := ValidateCommonHeader(payload.Header)
 	if err != nil {
-		putilsLogger.Errorf("validateCommonHeader returns err %s", err)
+		putilsLogger.Errorf("ValidateCommonHeader returns err %s", err)
 		return nil, pb.TxValidationCode_BAD_COMMON_HEADER
 	}
 

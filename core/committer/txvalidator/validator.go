@@ -8,6 +8,7 @@ package txvalidator
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/hyperledger/fabric/common/configtx"
 	commonerrors "github.com/hyperledger/fabric/common/errors"
 	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/core/chaincode/platforms"
 	"github.com/hyperledger/fabric/core/chaincode/platforms/golang"
 	"github.com/hyperledger/fabric/core/common/sysccprovider"
@@ -105,6 +107,50 @@ func NewTxValidator(chainID string, support Support, sccp sysccprovider.SystemCh
 		Vscc:    newVSCCValidator(chainID, support, sccp, pluginValidator)}
 }
 
+func (v *TxValidator) preProcessBlock(block *common.Block) (*common.Block, error) {
+	logger.Infof("enter preProcessBlock ")
+	defer logger.Infof("exit preProcessBlock ")
+	blkcpy := *block
+
+	for index, data := range blkcpy.Data.Data {
+		// get the envelope...
+		env, err := utils.GetEnvelopeFromBlock(data)
+		if err != nil {
+			logger.Errorf("preProcessBlock error: GetEnvelope failed, err %s", err)
+			return nil, errors.Wrap(err, "preProcessBlock failed")
+		}
+
+		// ...and the payload...
+		payload, err := utils.GetPayload(env)
+		if err != nil {
+			logger.Errorf("preProcessBlock error: GetPayload failed, err %s", err)
+			return nil, errors.Wrap(err, "preProcessBlock failed")
+		}
+		// validate the header
+		chdr, shdr, err := validation.ValidateCommonHeader(payload.Header)
+		if err != nil {
+			logger.Errorf("ValidateCommonHeader returns err %s", err)
+			return nil, err
+		}
+
+		//recover cert for creator
+		if len(shdr.Creator) == util.CERT_HASH_LEN {
+			cert, err := v.Support.Ledger().GetCert(shdr.Creator)
+			if err != nil {
+				logger.Errorf("GetCert from db with hash:%s\n returns err %s", hex.EncodeToString(shdr.Creator), err)
+				return nil, err
+			}
+			logger.Infof("Do the creator replace work for hash:%s blockNum:%d env index:%d", hex.EncodeToString(shdr.Creator), block.Header.Number, index)
+			shdr.Creator = cert
+			payloadHeader := utils.MakePayloadHeader(chdr, shdr)
+			payload = &common.Payload{Header: payloadHeader, Data: payload.Data}
+			env.Payload = utils.MarshalOrPanic(payload)
+		}
+		blkcpy.Data.Data[index] = utils.MarshalOrPanic(env)
+	}
+	return &blkcpy, nil
+}
+
 func (v *TxValidator) chainExists(chain string) bool {
 	// TODO: implement this function!
 	return true
@@ -136,6 +182,12 @@ func (v *TxValidator) Validate(block *common.Block) error {
 
 	startValidation := time.Now() // timer to log Validate block duration
 	logger.Debugf("[%s] START Block Validation for block [%d]", v.ChainID, block.Header.Number)
+
+	block, err = v.preProcessBlock(block)
+	if err != nil {
+		logger.Errorf("[%s] preProcessBlock for block [%d] err: %s", v.ChainID, block.Header.Number, err)
+		return err
+	}
 
 	// Initialize trans as valid here, then set invalidation reason code upon invalidation below
 	txsfltr := ledgerUtil.NewTxValidationFlags(len(block.Data.Data))

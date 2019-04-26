@@ -7,10 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 package qscc
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strconv"
 
 	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/core/aclmgmt"
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	"github.com/hyperledger/fabric/core/ledger"
@@ -48,6 +50,7 @@ var qscclogger = flogging.MustGetLogger("qscc")
 
 // These are function names from Invoke first parameter
 const (
+	GetIdentityByHash  string = "GetIdentityByHash"
 	GetChainInfo       string = "GetChainInfo"
 	GetBlockByNumber   string = "GetBlockByNumber"
 	GetBlockByHash     string = "GetBlockByHash"
@@ -105,6 +108,8 @@ func (e *LedgerQuerier) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	}
 
 	switch fname {
+	case GetIdentityByHash:
+		return getIdentityByHash(targetLedger, args[2])
 	case GetTransactionByID:
 		return getTransactionByID(targetLedger, args[2])
 	case GetBlockByNumber:
@@ -118,6 +123,34 @@ func (e *LedgerQuerier) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 	}
 
 	return shim.Error(fmt.Sprintf("Requested function %s not found.", fname))
+}
+
+func getIdentityByHash(vledger ledger.PeerLedger, hash []byte) pb.Response {
+
+	decoded, err := hex.DecodeString(string(hash))
+	if err != nil {
+		return shim.Error(fmt.Sprintf("Identity hash decode failed len %d.", util.CERT_HASH_LEN))
+	}
+
+	if len(decoded) != util.CERT_HASH_LEN {
+		return shim.Error(fmt.Sprintf("Identity hash len should be %d.", util.CERT_HASH_LEN))
+	}
+
+	/*
+		cert, err := kvledger.GlbCertStore.GetCert(decoded)
+		if err != nil {
+			return shim.Error(fmt.Sprintf("Failed to get Identity hash %s, error %s", string(hash), err))
+		}
+	*/
+
+	cert, err := vledger.GetCert(decoded)
+	if err != nil {
+		return shim.Error(fmt.Sprintf("Failed to get block Identity hash %s, error %s", string(hash), err))
+	}
+
+	//fmt.Printf("block Identity is %x\n", cert1)
+
+	return shim.Success(cert)
 }
 
 func getTransactionByID(vledger ledger.PeerLedger, tid []byte) pb.Response {

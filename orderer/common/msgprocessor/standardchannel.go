@@ -7,15 +7,24 @@ SPDX-License-Identifier: Apache-2.0
 package msgprocessor
 
 import (
+	"encoding/hex"
+
 	"github.com/hyperledger/fabric/common/channelconfig"
 	"github.com/hyperledger/fabric/common/crypto"
 	"github.com/hyperledger/fabric/common/policies"
+	"github.com/hyperledger/fabric/common/util"
 	cb "github.com/hyperledger/fabric/protos/common"
 	"github.com/hyperledger/fabric/protos/utils"
 )
 
 // StandardChannelSupport includes the resources needed for the StandardChannel processor.
 type StandardChannelSupport interface {
+	//GetCert getcert from index
+	GetCert(hash []byte) ([]byte, error)
+
+	//CertExists
+	CertExists(hash []byte) (bool, error)
+
 	// Sequence should return the current configSeq
 	Sequence() uint64
 
@@ -72,6 +81,55 @@ func (s *StandardChannel) ClassifyMsg(chdr *cb.ChannelHeader) Classification {
 	default:
 		return NormalMsg
 	}
+}
+
+//PruneNormalMsg prune certs in tx
+func (s *StandardChannel) PruneNormalMsg(msg *cb.Envelope) (*cb.Envelope, error) {
+	pruneMsg := msg
+	// get the payload from the envelope
+	payload, err := utils.GetPayload(msg)
+	if err != nil {
+		logger.Errorf("GetPayload returns err %s", err)
+		return msg, err
+	}
+
+	chdr, err := utils.UnmarshalChannelHeader(payload.Header.ChannelHeader)
+	if err != nil {
+		return nil, err
+	}
+
+	//we only prune normal endorse msg
+	if cb.HeaderType(chdr.Type) != cb.HeaderType_ENDORSER_TRANSACTION {
+		logger.Debugf("skip prune this tx with type: %d", chdr.Type)
+		return msg, nil
+	}
+
+	shdr, err := utils.GetSignatureHeader(payload.Header.SignatureHeader)
+	if err != nil || shdr.Creator == nil {
+		return msg, err
+	}
+
+	if len(shdr.Creator) == util.CERT_HASH_LEN { //already hash,no need prune
+		logger.Debugf("this is a  hash of creator, no need prune")
+		return msg, nil
+	}
+	hash := util.ComputeSHA256(shdr.Creator)
+	exists, err := s.support.CertExists(hash)
+	if err != nil {
+		return msg, err
+	} else if !exists {
+		logger.Debugf("this is a  creator, but cert does not exist")
+	} else { // cert already exists
+		//do replace work
+		logger.Infof("replace transaction  with creator hash: %s", hex.EncodeToString(hash))
+		newShdr := shdr
+		newShdr.Creator = hash
+		payloadHeader := utils.MakePayloadHeader(chdr, newShdr)
+		newPayload := &cb.Payload{Header: payloadHeader, Data: payload.Data}
+		pruneMsg = &cb.Envelope{Payload: utils.MarshalOrPanic(newPayload), Signature: msg.Signature}
+	}
+
+	return pruneMsg, nil
 }
 
 // ProcessNormalMsg will check the validity of a message based on the current configuration.  It returns the current
