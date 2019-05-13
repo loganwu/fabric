@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -32,6 +33,19 @@ import (
 )
 
 const CERT_HASH_LEN int = 32
+
+var enabledCertPrune string
+
+func init() {
+	enabledCertPrune = os.Getenv("FABRIC_ENABLED_CERT_PRUNE")
+}
+
+func IsEnabledCertPrune() bool {
+	if enabledCertPrune == "true" {
+		return true
+	}
+	return false
+}
 
 type alg struct {
 	hashFun func([]byte) string

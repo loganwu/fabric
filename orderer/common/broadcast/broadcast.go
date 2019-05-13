@@ -172,13 +172,15 @@ func (bh *Handler) ProcessMessage(msg *cb.Envelope, addr string) (resp *ab.Broad
 			logger.Warningf("[channel: %s] Rejecting broadcast of message from %s with SERVICE_UNAVAILABLE: rejected by Consenter: %s", chdr.ChannelId, addr, err)
 			return &ab.BroadcastResponse{Status: cb.Status_SERVICE_UNAVAILABLE, Info: err.Error()}
 		}
-
-		pruneMsg, err := processor.PruneNormalMsg(msg)
-		if err != nil {
-			logger.Warningf("[channel: %s] Could not PruneNormalMsg for serving %s: %s", tracker.ChannelID, addr, err)
-			return &ab.BroadcastResponse{Status: cb.Status_BAD_REQUEST, Info: err.Error()}
+		if util.IsEnabledCertPrune() {
+			msg, err = processor.PruneNormalMsg(msg)
+			if err != nil {
+				logger.Warningf("[channel: %s] Could not PruneNormalMsg for serving %s: %s", tracker.ChannelID, addr, err)
+				return &ab.BroadcastResponse{Status: cb.Status_BAD_REQUEST, Info: err.Error()}
+			}
 		}
-		err = processor.Order(pruneMsg, configSeq)
+
+		err = processor.Order(msg, configSeq)
 		if err != nil {
 			logger.Warningf("[channel: %s] Rejecting broadcast of normal message from %s with SERVICE_UNAVAILABLE: rejected by Order: %s", chdr.ChannelId, addr, err)
 			return &ab.BroadcastResponse{Status: cb.Status_SERVICE_UNAVAILABLE, Info: err.Error()}

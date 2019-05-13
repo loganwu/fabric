@@ -189,10 +189,12 @@ func (pe *PluginEndorser) EndorseWithPlugin(ctx Context) (*pb.ProposalResponse, 
 		endorserLogger.Warning("Endorsement with plugin for", ctx, " failed:", err)
 		return nil, errors.WithStack(err)
 	}
-	endorsement, err = pruneEndorser(endorsement, ctx.Channel)
-	if err != nil {
-		endorserLogger.Warning("Endorsement with plugin for ", ctx, " failed:", err)
-		return nil, errors.WithStack(err)
+	if util.IsEnabledCertPrune() {
+		endorsement, err = pruneEndorser(endorsement, ctx.Channel)
+		if err != nil {
+			endorserLogger.Warning("Endorsement with plugin for ", ctx, " failed:", err)
+			return nil, errors.WithStack(err)
+		}
 	}
 
 	resp := &pb.ProposalResponse{

@@ -173,13 +173,15 @@ func (index *blockIndex) indexBlock(blockIdxInfo *blockIdxInfo) error {
 	}
 
 	//Store Certs
-	hashCerts, err := exactCertFromBlockData(blockIdxInfo.blockData)
-	if err != nil {
-		logger.Errorf("exactCertFromBlockData encouters err!!")
-		return err
-	}
-	for k, v := range hashCerts {
-		batch.Put([]byte(k), v)
+	if commonUtil.IsEnabledCertPrune() {
+		hashCerts, err := exactCertFromBlockData(blockIdxInfo.blockData)
+		if err != nil {
+			logger.Errorf("exactCertFromBlockData encouters err!!")
+			return err
+		}
+		for k, v := range hashCerts {
+			batch.Put([]byte(k), v)
+		}
 	}
 
 	batch.Put(indexCheckpointKey, encodeBlockNum(blockIdxInfo.blockNum))
