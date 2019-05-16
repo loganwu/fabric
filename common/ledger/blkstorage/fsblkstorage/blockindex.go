@@ -387,24 +387,27 @@ func exactCertFromBlockData(blockData *common.BlockData) (map[string][]byte, err
 
 		for _, txPayl := range tx.Actions {
 			/*go through actions creator, currently only one action*/
-			ashdr, err := utils.GetSignatureHeader(txPayl.Header)
-			if err != nil {
-				logger.Errorf("exactCertFromBlockData error: GetSignatureHeader failed, err %s", err)
-				return nil, err
-			}
-			if len(ashdr.Creator) == commonUtil.CERT_HASH_LEN {
-				logger.Debugf("This is a hash of creator:\n%x", ashdr.Creator)
-			} else {
-				certHash := commonUtil.ComputeSHA256(ashdr.Creator)
-				key := constructCertHashKey(certHash)
-				if _, ok := hashCert[string(key)]; ok {
-					//with the same creator has already been added
-					logger.Debugf("Ignoring duplicated creator,key: %x\n creator:\n%x", key, ashdr.Creator)
-				} else {
-					hashCert[string(key)] = ashdr.Creator
-					logger.Debugf("This is a action creator, key: %x\n creator:\n%x", key, ashdr.Creator)
+			/*
+				ashdr, err := utils.GetSignatureHeader(txPayl.Header)
+				if err != nil {
+					logger.Errorf("exactCertFromBlockData error: GetSignatureHeader failed, err %s", err)
+					return nil, err
 				}
-			}
+				if len(ashdr.Creator) == commonUtil.CERT_HASH_LEN {
+					logger.Debugf("This is a hash of creator:\n%x", ashdr.Creator)
+				} else {
+					certHash := commonUtil.ComputeSHA256(ashdr.Creator)
+					key := constructCertHashKey(certHash)
+					if _, ok := hashCert[string(key)]; ok {
+						//with the same creator has already been added
+						logger.Debugf("Ignoring duplicated creator,key: %x\n creator:\n%x", key, ashdr.Creator)
+					} else {
+						hashCert[string(key)] = ashdr.Creator
+						logger.Debugf("This is a action creator, key: %x\n creator:\n%x", key, ashdr.Creator)
+					}
+				}
+
+			*/
 
 			/*go through actions endorsers, currently only one action*/
 			cap, err := utils.GetChaincodeActionPayload(txPayl.Payload)
