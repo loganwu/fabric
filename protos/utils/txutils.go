@@ -192,7 +192,7 @@ func CreateSignedTx(proposal *peer.Proposal, signer msp.SigningIdentity, resps .
 	}
 
 	// create a transaction
-	taa := &peer.TransactionAction{Header: hdr.SignatureHeader, Payload: capBytes}
+	taa := &peer.TransactionAction{Header: nil, Payload: capBytes}
 	taas := make([]*peer.TransactionAction, 1)
 	taas[0] = taa
 	tx := &peer.Transaction{Actions: taas}

@@ -325,17 +325,19 @@ func validateEndorserTransaction(data []byte, hdr *common.Header) error {
 		}
 
 		// if the type is ENDORSER_TRANSACTION we unmarshal a SignatureHeader
-		sHdr, err := utils.GetSignatureHeader(act.Header)
-		if err != nil {
-			return err
-		}
+		/*
+			sHdr, err := utils.GetSignatureHeader(act.Header)
+			if err != nil {
+				return err
+			}
 
-		// validate the SignatureHeader - here we actually only
-		// care about the nonce since the creator is in the outer header
-		err = validateSignatureHeader(sHdr)
-		if err != nil {
-			return err
-		}
+			// validate the SignatureHeader - here we actually only
+			// care about the nonce since the creator is in the outer header
+			err = validateSignatureHeader(sHdr)
+			if err != nil {
+				return err
+			}
+		*/
 
 		putilsLogger.Debugf("validateEndorserTransaction info: signature header is valid")
 
@@ -353,10 +355,10 @@ func validateEndorserTransaction(data []byte, hdr *common.Header) error {
 
 		// build the original header by stitching together
 		// the common ChannelHeader and the per-action SignatureHeader
-		hdrOrig := &common.Header{ChannelHeader: hdr.ChannelHeader, SignatureHeader: act.Header}
+		//hdrOrig := &common.Header{ChannelHeader: hdr.ChannelHeader, SignatureHeader: act.Header}
 
 		// compute proposalHash
-		pHash, err := utils.GetProposalHash2(hdrOrig, ccActionPayload.ChaincodeProposalPayload)
+		pHash, err := utils.GetProposalHash2(hdr, ccActionPayload.ChaincodeProposalPayload)
 		if err != nil {
 			return err
 		}
