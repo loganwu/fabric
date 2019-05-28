@@ -183,7 +183,13 @@ func (msp *bccspmsp) setupCRLs(conf *m.FabricMSPConfig) error {
 	for i, crlbytes := range conf.RevocationList {
 		crl, err := x509.ParseCRL(crlbytes)
 		if err != nil {
-			return errors.Wrap(err, "could not parse RevocationList")
+			rcert, err1 := msp.getCertFromPem(crlbytes)
+			if err1 != nil {
+				mspLogger.Errorf("could not parse RevocationList bytes: \n%x", crlbytes)
+				return errors.Wrap(err, "could not parse RevocationList")
+			}
+			msp.revocationCert[i] = rcert
+			continue
 		}
 
 		// TODO: pre-verify the signature on the CRL and create a map

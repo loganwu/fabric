@@ -123,6 +123,13 @@ func (msp *bccspmsp) validateCertAgainstChain(cert *x509.Certificate, validation
 		}
 	}
 
+	for _, rcert := range msp.revocationCert {
+		if (rcert.SerialNumber.Cmp(cert.SerialNumber)) == 0 {
+			mspLogger.Warningf("The certificate has been revoked,serialnum: %v", rcert.SerialNumber)
+			return errors.New("The certificate has been revoked")
+		}
+	}
+
 	return nil
 }
 
