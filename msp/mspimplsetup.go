@@ -179,8 +179,9 @@ func (msp *bccspmsp) setupAdmins(conf *m.FabricMSPConfig) error {
 
 func (msp *bccspmsp) setupCRLs(conf *m.FabricMSPConfig) error {
 	// setup the CRL (if present)
-	msp.CRL = make([]*pkix.CertificateList, len(conf.RevocationList))
-	for i, crlbytes := range conf.RevocationList {
+	msp.CRL = make([]*pkix.CertificateList, 0, len(conf.RevocationList))
+	msp.revocationCert = make([]*x509.Certificate, 0, len(conf.RevocationList))
+	for _, crlbytes := range conf.RevocationList {
 		crl, err := x509.ParseCRL(crlbytes)
 		if err != nil {
 			rcert, err1 := msp.getCertFromPem(crlbytes)
@@ -188,7 +189,7 @@ func (msp *bccspmsp) setupCRLs(conf *m.FabricMSPConfig) error {
 				mspLogger.Errorf("could not parse RevocationList bytes: \n%x", crlbytes)
 				return errors.Wrap(err, "could not parse RevocationList")
 			}
-			msp.revocationCert[i] = rcert
+			msp.revocationCert = append(msp.revocationCert, rcert)
 			continue
 		}
 
@@ -197,7 +198,7 @@ func (msp *bccspmsp) setupCRLs(conf *m.FabricMSPConfig) error {
 		//       validation we can already look up the CRL given the
 		//       chain of the certificate to be validated
 
-		msp.CRL[i] = crl
+		msp.CRL = append(msp.CRL, crl)
 	}
 
 	return nil
