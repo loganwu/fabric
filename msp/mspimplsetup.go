@@ -15,6 +15,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric/bccsp"
+	"github.com/hyperledger/fabric/common/util"
 	m "github.com/hyperledger/fabric/protos/msp"
 	errors "github.com/pkg/errors"
 )
@@ -184,13 +185,18 @@ func (msp *bccspmsp) setupCRLs(conf *m.FabricMSPConfig) error {
 	for _, crlbytes := range conf.RevocationList {
 		crl, err := x509.ParseCRL(crlbytes)
 		if err != nil {
-			rcert, err1 := msp.getCertFromPem(crlbytes)
-			if err1 != nil {
-				mspLogger.Errorf("could not parse RevocationList bytes: \n%x", crlbytes)
+			if util.EnableCRLCertExtend() {
+				rcert, err1 := msp.getCertFromPem(crlbytes)
+				if err1 != nil {
+					mspLogger.Errorf("could not parse RevocationCert bytes: \n%x", crlbytes)
+					return errors.Wrap(err, "could not parse RevocationCert")
+				}
+				msp.revocationCert = append(msp.revocationCert, rcert)
+				continue
+			} else {
 				return errors.Wrap(err, "could not parse RevocationList")
 			}
-			msp.revocationCert = append(msp.revocationCert, rcert)
-			continue
+
 		}
 
 		// TODO: pre-verify the signature on the CRL and create a map

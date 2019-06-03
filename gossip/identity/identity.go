@@ -94,7 +94,7 @@ func (is *identityMapperImpl) periodicalPurgeUnusedIdentities() {
 			return
 		case <-time.After(usageTh / 10):
 			is.SuspectPeers(func(_ api.PeerIdentityType) bool {
-				return false
+				return true
 			})
 		}
 	}

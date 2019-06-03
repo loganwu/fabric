@@ -17,6 +17,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/protos/msp"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
@@ -71,6 +72,9 @@ func newIdentity(cert *x509.Certificate, pk bccsp.Key, msp *bccspmsp) (Identity,
 
 // ExpiresAt returns the time at which the Identity expires.
 func (id *identity) ExpiresAt() time.Time {
+	if util.DisableCertExpire() {
+		return time.Time{}
+	}
 	return id.cert.NotAfter
 }
 

@@ -40,6 +40,20 @@ func init() {
 	enabledCertPrune = os.Getenv("FABRIC_ENABLED_CERT_PRUNE")
 }
 
+func EnableCRLCertExtend() bool {
+	if os.Getenv("FABRIC_ENABLED_CERT_EXTEND") == "true" {
+		return true
+	}
+	return false
+}
+
+func DisableCertExpire() bool {
+	if os.Getenv("FABRIC_DISABLED_CERT_EXPIRE") == "true" {
+		return true
+	}
+	return false
+}
+
 func IsEnabledCertPrune() bool {
 	if enabledCertPrune == "true" {
 		return true

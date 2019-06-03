@@ -12,12 +12,16 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/protos/msp"
 )
 
 // ExpiresAt returns when the given identity expires, or a zero time.Time
 // in case we cannot determine that
 func ExpiresAt(identityBytes []byte) time.Time {
+	if util.DisableCertExpire() {
+		return time.Time{}
+	}
 	sId := &msp.SerializedIdentity{}
 	// If protobuf parsing failed, we make no decisions about the expiration time
 	if err := proto.Unmarshal(identityBytes, sId); err != nil {
