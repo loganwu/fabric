@@ -237,11 +237,11 @@ func (id *signingidentity) Sign(msg []byte) ([]byte, error) {
 	}
 
 	if len(msg) < 32 {
-		mspIdentityLogger.Debugf("Sign: plaintext: %X \n", msg)
+		//mspIdentityLogger.Debugf("Sign: plaintext: %X \n", msg)
 	} else {
-		mspIdentityLogger.Debugf("Sign: plaintext: %X...%X \n", msg[0:16], msg[len(msg)-16:])
+		//mspIdentityLogger.Debugf("Sign: plaintext: %X...%X \n", msg[0:16], msg[len(msg)-16:])
 	}
-	mspIdentityLogger.Debugf("Sign: digest: %X \n", digest)
+	//mspIdentityLogger.Debugf("Sign: digest: %X \n", digest)
 
 	// Sign
 	return id.signer.Sign(rand.Reader, digest, nil)

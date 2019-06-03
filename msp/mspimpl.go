@@ -256,7 +256,7 @@ func (msp *bccspmsp) GetTLSIntermediateCerts() [][]byte {
 // GetDefaultSigningIdentity returns the
 // default signing identity for this MSP (if any)
 func (msp *bccspmsp) GetDefaultSigningIdentity() (SigningIdentity, error) {
-	mspLogger.Debugf("Obtaining default signing identity")
+	//mspLogger.Debugf("Obtaining default signing identity")
 
 	if msp.signer == nil {
 		return nil, errors.New("this MSP does not possess a valid default signing identity")
