@@ -111,7 +111,7 @@ func (v *TxValidator) preProcessBlock(block *common.Block) (*common.Block, error
 	logger.Infof("enter preProcessBlock ")
 	defer logger.Infof("exit preProcessBlock ")
 	blkcpy := *block
-
+	var blkdata common.BlockData
 	for index, data := range blkcpy.Data.Data {
 		// get the envelope...
 		env, err := utils.GetEnvelopeFromBlock(data)
@@ -152,9 +152,12 @@ func (v *TxValidator) preProcessBlock(block *common.Block) (*common.Block, error
 			payloadHeader := utils.MakePayloadHeader(chdr, shdr)
 			payload = &common.Payload{Header: payloadHeader, Data: payload.Data}
 			env.Payload = utils.MarshalOrPanic(payload)
+			blkdata.Data = append(blkdata.Data, utils.MarshalOrPanic(env))
+		} else {
+			blkdata.Data = append(blkdata.Data, data)
 		}
-		blkcpy.Data.Data[index] = utils.MarshalOrPanic(env)
 	}
+	blkcpy.Data = &blkdata
 	return &blkcpy, nil
 }
 
