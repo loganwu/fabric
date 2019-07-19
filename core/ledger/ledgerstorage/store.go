@@ -110,6 +110,12 @@ func (s *Store) Init(btlPolicy pvtdatapolicy.BTLPolicy) {
 	s.pvtdataStore.Init(btlPolicy)
 }
 
+// Archive archive the channel into a given block number.
+func Archive(blockstorePath, ledgerID string, blockNum uint64) error {
+	indexConfig := &blkstorage.IndexConfig{AttrsToIndex: attrsToIndex}
+	return fsblkstorage.Archive(blockstorePath, ledgerID, blockNum, indexConfig)
+}
+
 // CommitWithPvtData commits the block and the corresponding pvt data in an atomic operation
 func (s *Store) CommitWithPvtData(blockAndPvtdata *ledger.BlockAndPvtData) error {
 	blockNum := blockAndPvtdata.Block.Header.Number
