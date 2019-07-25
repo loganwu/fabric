@@ -35,6 +35,9 @@ var nodeArchiveCmd = &cobra.Command{
 		if channelID == common.UndefinedParamValue {
 			return errors.New("Must supply channel ID")
 		}
+		if blknumb <= 1 {
+			return errors.New("archive block number must be bigger than 1")
+		}
 		return kvledger.ArchiveKVLedger(channelID, blknumb)
 	},
 }
