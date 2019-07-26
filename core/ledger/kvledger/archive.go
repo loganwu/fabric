@@ -24,8 +24,12 @@ func ArchiveKVLedger(ledgerID string, blockNum uint64) error {
 
 	blockstorePath := ledgerconfig.GetBlockStorePath()
 
+	if err := ledgerstorage.ValidateParams(blockstorePath, ledgerID, blockNum); err != nil {
+		return err
+	}
+
 	logger.Infof("store database snapshot")
-	/* TODO
+	/* TODO loganwu
 	if err := storeDatabaseSnapshot(); err != nil {
 		return err
 	}

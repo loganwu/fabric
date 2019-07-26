@@ -110,6 +110,12 @@ func (s *Store) Init(btlPolicy pvtdatapolicy.BTLPolicy) {
 	s.pvtdataStore.Init(btlPolicy)
 }
 
+// ValidateParams performs necessary validation on the input given for
+// the archive operation.
+func ValidateParams(blockstorePath, ledgerID string, blockNum uint64) error {
+	return fsblkstorage.ValidateParams(blockstorePath, ledgerID, blockNum)
+}
+
 // Archive archive the channel into a given block number.
 func Archive(blockstorePath, ledgerID string, blockNum uint64) error {
 	indexConfig := &blkstorage.IndexConfig{AttrsToIndex: attrsToIndex}

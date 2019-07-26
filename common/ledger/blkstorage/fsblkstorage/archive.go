@@ -9,7 +9,10 @@ import (
 	"os"
 
 	"github.com/hyperledger/fabric/common/ledger/blkstorage"
+	"github.com/hyperledger/fabric/common/ledger/util"
 	"github.com/hyperledger/fabric/common/ledger/util/leveldbhelper"
+	"github.com/hyperledger/fabric/protos/common"
+	"github.com/hyperledger/fabric/protos/utils"
 	"github.com/pkg/errors"
 )
 
@@ -20,6 +23,7 @@ type archiveMgr struct {
 	dbProvider     *leveldbhelper.Provider
 	indexStore     *blockIndex
 	targetBlockNum uint64
+	configBlockNum uint64
 }
 
 // Archive reverts changes made to the block store beyond a given block number.
@@ -30,12 +34,22 @@ func Archive(blockStorageDir, ledgerID string, targetBlockNum uint64, indexConfi
 	}
 	defer r.dbProvider.Close()
 
-	logger.Infof("Rolling back block index to block number [%d]", targetBlockNum)
+	targetBlock, err := r.getBlockByNumber(r.targetBlockNum)
+	if err != nil {
+		return err
+	}
+	r.configBlockNum, err = utils.GetLastConfigIndexFromBlock(targetBlock)
+	if err != nil {
+		return err
+	}
+	logger.Infof("Get config block number of targetblock, config number [%d]", r.configBlockNum)
+
+	logger.Infof("Archive block index to block number [%d]", targetBlockNum)
 	if err := r.archiveBlockIndex(); err != nil {
 		return err
 	}
 
-	logger.Infof("Rolling back block files to block number [%d]", targetBlockNum)
+	logger.Infof("Archive block files to block number [%d]", targetBlockNum)
 	if err := r.archiveBlockFiles(); err != nil {
 		return err
 	}
@@ -60,35 +74,22 @@ func newArchiveMgr(blockStorageDir, ledgerID string, indexConfig *blkstorage.Ind
 }
 
 func (r *archiveMgr) archiveBlockIndex() error {
-	lastBlockNumber, err := r.indexStore.getLastBlockIndexed()
-	if err == errIndexEmpty {
+	batchLimit := uint64(10)
+	start, limit := uint64(0), r.targetBlockNum-1
+	if limit <= start {
 		return nil
 	}
-	if err != nil {
-		return err
-	}
 
-	// we remove index associated with only 10 blocks at a time
-	// to avoid overuse of memory occupied by the leveldb batch.
-	// If we assume a block size of 2000 transactions and 4 indices
-	// per transaction and 2 index per block, the total number of
-	// index keys to be added in the batch would be 80020. Even if a
-	// key takes 100 bytes (overestimation), the memory utilization
-	// of a batch of 10 blocks would be 7 MB only.
-	batchLimit := uint64(10)
-
-	// start each iteration of the loop with full range for deletion
-	// and shrink the range to batchLimit if the range is greater than batchLimit
-	start, end := r.targetBlockNum+1, lastBlockNumber
-	for end >= start {
-		if end-start >= batchLimit {
-			start = end - batchLimit + 1 // 1 is added as range is inclusive
+	end := limit
+	for start <= limit {
+		if limit-start >= batchLimit {
+			end = start + batchLimit - 1
 		}
 		logger.Infof("Deleting index associated with block number [%d] to [%d]", start, end)
 		if err := r.deleteIndexEntriesRange(start, end); err != nil {
 			return err
 		}
-		start, end = r.targetBlockNum+1, start-1
+		start = end + 1
 	}
 	return nil
 }
@@ -114,6 +115,12 @@ func (r *archiveMgr) deleteIndexEntriesRange(startBlkNum, endBlkNum uint64) erro
 			return err
 		}
 
+		if blockInfo.blockHeader.Number == r.configBlockNum {
+			logger.Infof("Skip deleting index of  config block number [%d]", r.configBlockNum)
+			numberOfBlocksToRetrieve--
+			continue
+		}
+
 		err = populateBlockInfoWithDuplicateTxids(blockInfo, placementInfo, r.indexStore)
 		if err != nil {
 			return err
@@ -136,31 +143,110 @@ func (r *archiveMgr) archiveBlockFiles() error {
 	if err != nil {
 		return err
 	}
-	lastFileNum, err := retrieveLastFileSuffix(r.ledgerDir)
+
+	configBlockFile, err := binarySearchFileNumForBlock(r.ledgerDir, r.configBlockNum)
 	if err != nil {
 		return err
 	}
 
-	logger.Infof("Removing all block files with suffixNum in the range [%d] to [%d]",
-		targetFileNum+1, lastFileNum)
+	logger.Infof("Removing all block files with suffixNum in the range [0] to [%d] except config file [%d]",
+		targetFileNum-1, configBlockFile)
 
-	for n := lastFileNum; n >= targetFileNum+1; n-- {
-		filepath := deriveBlockfilePath(r.ledgerDir, n)
-		if err := os.Remove(filepath); err != nil {
-			return errors.Wrapf(err, "error removing the block file [%s]", filepath)
+	for n := 0; n < targetFileNum; n++ {
+		if n != configBlockFile {
+			filepath := deriveBlockfilePath(r.ledgerDir, n)
+			if err := os.Remove(filepath); err != nil {
+				return errors.Wrapf(err, "error removing the block file [%s]", filepath)
+			}
 		}
-	}
 
-	logger.Infof("Truncating block file [%d] to the end boundary of block number [%d]", targetFileNum, r.targetBlockNum)
-	endOffset, err := calculateEndOffSet(r.ledgerDir, targetFileNum, r.targetBlockNum)
-	if err != nil {
-		return err
-	}
-
-	filePath := deriveBlockfilePath(r.ledgerDir, targetFileNum)
-	if err := os.Truncate(filePath, endOffset); err != nil {
-		return errors.Wrapf(err, "error trucating the block file [%s]", filePath)
 	}
 
 	return nil
+}
+
+func (r *archiveMgr) getConfigBlock(blknum uint64) (*common.Block, error) {
+	lastBlock, err := r.getBlockByNumber(blknum)
+	if err != nil {
+		return nil, err
+	}
+
+	// get most recent config block location from last block metadata
+	configBlockIndex, err := utils.GetLastConfigIndexFromBlock(lastBlock)
+	if err != nil {
+		return nil, err
+	}
+
+	// get most recent config block
+	configBlock, err := r.getBlockByNumber(configBlockIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	return configBlock, nil
+}
+
+func (r *archiveMgr) getBlockByNumber(blockNum uint64) (*common.Block, error) {
+	logger.Debugf("getBlockByNumber() - blockNum = [%d]", blockNum)
+
+	loc, err := r.indexStore.getBlockLocByBlockNum(blockNum)
+	if err != nil {
+		return nil, err
+	}
+	return r.fetchBlock(loc)
+}
+
+func (r *archiveMgr) fetchBlock(lp *fileLocPointer) (*common.Block, error) {
+	blockBytes, err := r.fetchBlockBytes(lp)
+	if err != nil {
+		return nil, err
+	}
+	block, err := deserializeBlock(blockBytes)
+	if err != nil {
+		return nil, err
+	}
+	return block, nil
+}
+
+func (r *archiveMgr) fetchBlockBytes(lp *fileLocPointer) ([]byte, error) {
+	stream, err := newBlockfileStream(r.ledgerDir, lp.fileSuffixNum, int64(lp.offset))
+	if err != nil {
+		return nil, err
+	}
+	defer stream.close()
+	b, err := stream.nextBlockBytes()
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// ValidateParams performs necessary validation
+func ValidateParams(blockStorageDir, ledgerID string, targetBlockNum uint64) error {
+	logger.Infof("Validating the parameters: ledgerID [%s], block number [%d]",
+		ledgerID, targetBlockNum)
+	conf := &Conf{blockStorageDir: blockStorageDir}
+	ledgerDir := conf.getLedgerBlockDir(ledgerID)
+
+	logger.Debugf("Validating the existance of ledgerID [%s]", ledgerID)
+	exists, _, err := util.FileExists(ledgerDir)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.Errorf("ledgerID [%s] does not exist", ledgerID)
+	}
+
+	logger.Debugf("Validating the given block number [%d] agains the ledger block height", targetBlockNum)
+	cpInfo, err := constructCheckpointInfoFromBlockFiles(ledgerDir)
+	if err != nil {
+		return err
+	}
+	if cpInfo.lastBlockNumber != targetBlockNum {
+		return errors.Errorf("target block number [%d] should be the biggest block number [%d]",
+			targetBlockNum, cpInfo.lastBlockNumber)
+	}
+
+	return nil
+
 }
